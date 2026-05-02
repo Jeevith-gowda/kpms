@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     const now = new Date();
 
     for (const lease of leases) {
-      if (!lease.property || !lease.tenant) continue;
+      if (!lease.property || !lease.tenants?.length) continue;
 
       // Upsert property
       const property = await prisma.property.upsert({
@@ -54,25 +54,32 @@ export async function POST(req: NextRequest) {
         unitId = unit.id;
       }
 
-      // Upsert tenant
-      const tenant = await prisma.tenant.upsert({
-        where: { externalId: lease.tenant.id },
-        update: {
-          firstName: lease.tenant.firstName ?? "",
-          lastName: lease.tenant.lastName ?? "",
-          fullName: lease.tenant.name ?? `${lease.tenant.firstName ?? ""} ${lease.tenant.lastName ?? ""}`.trim(),
-          primaryPhone: lease.tenant.phone,
-          email: lease.tenant.email,
-        },
-        create: {
-          externalId: lease.tenant.id,
-          firstName: lease.tenant.firstName ?? "",
-          lastName: lease.tenant.lastName ?? "",
-          fullName: lease.tenant.name ?? `${lease.tenant.firstName ?? ""} ${lease.tenant.lastName ?? ""}`.trim(),
-          primaryPhone: lease.tenant.phone,
-          email: lease.tenant.email,
-        },
-      });
+      // Upsert all tenants for this lease
+      const upsertedTenantIds: string[] = [];
+      for (const t of lease.tenants) {
+        const tenant = await prisma.tenant.upsert({
+          where: { externalId: t.id },
+          update: {
+            firstName: t.firstName ?? "",
+            lastName: t.lastName ?? "",
+            fullName: t.name ?? `${t.firstName ?? ""} ${t.lastName ?? ""}`.trim(),
+            primaryPhone: t.phone,
+            email: t.email,
+          },
+          create: {
+            externalId: t.id,
+            firstName: t.firstName ?? "",
+            lastName: t.lastName ?? "",
+            fullName: t.name ?? `${t.firstName ?? ""} ${t.lastName ?? ""}`.trim(),
+            primaryPhone: t.phone,
+            email: t.email,
+          },
+        });
+        upsertedTenantIds.push(tenant.id);
+      }
+
+      // Primary tenant is the first one
+      const primaryTenantId = upsertedTenantIds[0];
 
       // Upsert landlord if present
       let landlordId: string | null = null;
@@ -111,7 +118,8 @@ export async function POST(req: NextRequest) {
           endDate: lease.endDate ? new Date(lease.endDate) : null,
           isActive,
           lastSyncedAt: now,
-          tenantId: tenant.id,
+          tenantId: primaryTenantId,
+          tenantIds: upsertedTenantIds,
           propertyId: property.id,
           unitId,
           landlordId,
@@ -120,7 +128,8 @@ export async function POST(req: NextRequest) {
           externalId: lease.id,
           propertyId: property.id,
           unitId,
-          tenantId: tenant.id,
+          tenantId: primaryTenantId,
+          tenantIds: upsertedTenantIds,
           landlordId,
           status: lease.status,
           startDate: new Date(lease.startDate),
@@ -148,7 +157,7 @@ export async function POST(req: NextRequest) {
           where: { propertyId_quarterKey: { propertyId: property.id, quarterKey: filterDates.quarterKey } },
           update: {
             leaseId: dbLease.id,
-            tenantId: tenant.id,
+            tenantId: primaryTenantId,
             landlordId,
             unitId,
             dueMonthKey: filterDates.dueMonthKey,
@@ -160,7 +169,7 @@ export async function POST(req: NextRequest) {
             propertyId: property.id,
             unitId,
             leaseId: dbLease.id,
-            tenantId: tenant.id,
+            tenantId: primaryTenantId,
             landlordId,
             quarterKey: filterDates.quarterKey,
             dueMonthKey: filterDates.dueMonthKey,

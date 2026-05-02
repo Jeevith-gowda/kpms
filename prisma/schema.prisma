@@ -96,6 +96,7 @@ model Lease {
   propertyId   String    @db.ObjectId
   unitId       String?   @db.ObjectId
   tenantId     String    @db.ObjectId
+  tenantIds    String[]  @db.ObjectId
   landlordId   String?   @db.ObjectId
   status       String
   startDate    DateTime

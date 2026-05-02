@@ -10,13 +10,14 @@ export async function GET(req: NextRequest) {
 
   const propertyIds = [...new Set(leases.map((l) => l.propertyId))];
   const unitIds = [...new Set(leases.filter((l) => l.unitId).map((l) => l.unitId!))];
-  const tenantIds = [...new Set(leases.map((l) => l.tenantId))];
+  // Collect ALL tenant IDs from tenantIds arrays (+ fallback tenantId)
+  const allTenantIds = [...new Set(leases.flatMap((l) => l.tenantIds?.length ? l.tenantIds : [l.tenantId]))];
   const landlordIds = [...new Set(leases.filter((l) => l.landlordId).map((l) => l.landlordId!))];
 
   const [properties, units, tenants, landlords] = await Promise.all([
     prisma.property.findMany({ where: { id: { in: propertyIds } } }),
     prisma.unit.findMany({ where: { id: { in: unitIds } } }),
-    prisma.tenant.findMany({ where: { id: { in: tenantIds } } }),
+    prisma.tenant.findMany({ where: { id: { in: allTenantIds } } }),
     prisma.landlord.findMany({ where: { id: { in: landlordIds } } }),
   ]);
 
@@ -25,13 +26,23 @@ export async function GET(req: NextRequest) {
   const tenantMap = Object.fromEntries(tenants.map((t) => [t.id, t]));
   const landlordMap = Object.fromEntries(landlords.map((l) => [l.id, l]));
 
-  const enriched = leases.map((l) => ({
-    ...l,
-    property: propMap[l.propertyId],
-    unit: l.unitId ? unitMap[l.unitId] : null,
-    tenant: tenantMap[l.tenantId],
-    landlord: l.landlordId ? landlordMap[l.landlordId] : null,
-  }));
+  const enriched = leases.map((l) => {
+    // Resolve all tenants for this lease
+    const tenantIdList = l.tenantIds?.length ? l.tenantIds : [l.tenantId];
+    const resolvedTenants = tenantIdList
+      .map((tid) => tenantMap[tid])
+      .filter(Boolean);
+
+    return {
+      ...l,
+      property: propMap[l.propertyId],
+      unit: l.unitId ? unitMap[l.unitId] : null,
+      tenants: resolvedTenants,
+      // Keep single tenant for backward compat
+      tenant: resolvedTenants[0] ?? null,
+      landlord: l.landlordId ? landlordMap[l.landlordId] : null,
+    };
+  });
 
   return NextResponse.json({ leases: enriched });
 }

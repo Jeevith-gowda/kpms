@@ -238,48 +238,61 @@ function AirfilterTable({ view }: { view: "current-month" | "all-time" }) {
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
+                      <div className="flex items-center gap-1">
+                        {hasPermission("send_reminder_manually") && !r.filterChanged && r.status !== "CONFIRMED_CHANGED" && !r.pauseReminders && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => sendMutation.mutate(r.id)}
+                            disabled={sendMutation.isPending}
+                          >
+                            Send Reminder
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>Preview Reminder</DropdownMenuItem>
-                          {hasPermission("send_reminder_manually") && (
-                            <DropdownMenuItem onClick={() => sendMutation.mutate(r.id)}>
-                              Send Reminder Now
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          {hasPermission("update_filter_changed_status") && (
-                            <>
-                              <DropdownMenuItem onClick={() => filterChangedMutation.mutate({ id: r.id, val: true })}>
-                                Mark Filter Changed
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>Preview Reminder</DropdownMenuItem>
+                            {hasPermission("send_reminder_manually") && (
+                              <DropdownMenuItem onClick={() => sendMutation.mutate(r.id)}>
+                                Send Reminder Now
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => filterChangedMutation.mutate({ id: r.id, val: false })}>
-                                Mark as Not Changed
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          {hasPermission("pause_or_resume_reminders") && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => pauseMutation.mutate({ id: r.id, val: true })}>
-                                Pause Reminders
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => pauseMutation.mutate({ id: r.id, val: false })}>
-                                Resume Reminders
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          <DropdownMenuSeparator />
-                          {hasPermission("view_reminder_history") && (
-                            <DropdownMenuItem>View Reminder History</DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem>Open Conversation</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            )}
+                            <DropdownMenuSeparator />
+                            {hasPermission("update_filter_changed_status") && (
+                              <>
+                                <DropdownMenuItem onClick={() => filterChangedMutation.mutate({ id: r.id, val: true })}>
+                                  Mark Filter Changed
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => filterChangedMutation.mutate({ id: r.id, val: false })}>
+                                  Mark as Not Changed
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            {hasPermission("pause_or_resume_reminders") && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => pauseMutation.mutate({ id: r.id, val: true })}>
+                                  Pause Reminders
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => pauseMutation.mutate({ id: r.id, val: false })}>
+                                  Resume Reminders
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            <DropdownMenuSeparator />
+                            {hasPermission("view_reminder_history") && (
+                              <DropdownMenuItem>View Reminder History</DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem>Open Conversation</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </td>
                   </tr>
                 ))
