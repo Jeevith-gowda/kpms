@@ -4,7 +4,7 @@ Internal property management system integrating DoorLoop, OpenPhone, and email.
 
 ## Stack
 
-- **Next.js 15** (App Router) + React + TypeScript
+- **Next.js 16** (App Router) + React + TypeScript
 - **Tailwind CSS** + custom shadcn/ui components
 - **Prisma ORM** + **MongoDB Atlas**
 - **JWT** sessions (jose)
