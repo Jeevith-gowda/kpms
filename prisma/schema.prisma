@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  name               String
+  email              String   @unique
+  passwordHash       String
+  role               String   @default("EMPLOYEE")
+  status             String   @default("ACTIVE")
+  mustChangePassword Boolean  @default(true)
+  lastLoginAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Permission {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  permissionKey   String   @unique
+  permissionLabel String
+  createdAt       DateTime @default(now())
+}
+
+model RolePermission {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  role            String
+  permissionKey   String
+  isEnabled       Boolean  @default(false)
+  updatedByUserId String?  @db.ObjectId
+  updatedAt       DateTime @updatedAt
+
+  @@unique([role, permissionKey])
+}
+
+model Property {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  externalId      String   @unique
+  name            String
+  address1        String
+  address2        String?
+  city            String
+  state           String
+  zip             String
+  occupancyStatus String   @default("VACANT")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Unit {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  externalId      String   @unique
+  propertyId      String   @db.ObjectId
+  unitNumber      String
+  occupancyStatus String   @default("VACANT")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Landlord {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  externalId  String   @unique
+  fullName    String
+  companyName String?
+  phone       String?
+  email       String?
+  address1    String?
+  address2    String?
+  city        String?
+  state       String?
+  zip         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Tenant {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  externalId   String   @unique
+  firstName    String
+  lastName     String
+  fullName     String
+  primaryPhone String?
+  email        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Lease {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  externalId   String    @unique
+  propertyId   String    @db.ObjectId
+  unitId       String?   @db.ObjectId
+  tenantId     String    @db.ObjectId
+  landlordId   String?   @db.ObjectId
+  status       String
+  startDate    DateTime
+  endDate      DateTime?
+  isActive     Boolean   @default(false)
+  lastSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Conversation {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  externalId    String?   @unique
+  tenantId      String?   @db.ObjectId
+  propertyId    String?   @db.ObjectId
+  phoneNumber   String
+  inboxStatus   String    @default("open")
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Message {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  externalId     String?  @unique
+  conversationId String   @db.ObjectId
+  direction      String
+  body           String
+  status         String
+  provider       String
+  sentAt         DateTime?
+  rawPayload     Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model AppSettings {
+  id                              String   @id @default(auto()) @map("_id") @db.ObjectId
+  reminderFrequency               String   @default("EVERY_DAY")
+  sendViaSms                      Boolean  @default(true)
+  sendViaEmail                    Boolean  @default(true)
+  sendMessagesAutomatically       Boolean  @default(true)
+  sendEveryMessageToDefaultNumber Boolean  @default(false)
+  defaultTestPhoneNumber          String?
+  updatedByUserId                 String?  @db.ObjectId
+  updatedAt                       DateTime @updatedAt
+  createdAt                       DateTime @default(now())
+}
+
+model AirfilterReminder {
+  id                       String    @id @default(auto()) @map("_id") @db.ObjectId
+  propertyId               String    @db.ObjectId
+  unitId                   String?   @db.ObjectId
+  leaseId                  String?   @db.ObjectId
+  tenantId                 String?   @db.ObjectId
+  landlordId               String?   @db.ObjectId
+  quarterKey               String
+  dueMonthKey              String
+  previousFilterChangeDate DateTime?
+  nextFilterChangeDate     DateTime
+  dueDate                  DateTime
+  status                   String    @default("PENDING")
+  pauseReminders           Boolean   @default(false)
+  filterChanged            Boolean   @default(false)
+  filterChangedAt          DateTime?
+  filterChangedByUserId    String?   @db.ObjectId
+  lastReminderSentAt       DateTime?
+  nextReminderScheduledAt  DateTime?
+  tenantResponseText       String?
+  tenantResponseAt         DateTime?
+  tenantResponseChannel    String?
+  messageId                String?
+  sentAt                   DateTime?
+  skippedAt                DateTime?
+  errorMessage             String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@unique([propertyId, quarterKey])
+}
+
+model ReminderDelivery {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  airfilterReminderId  String   @db.ObjectId
+  channel              String
+  status               String
+  providerMessageId    String?
+  sentAt               DateTime
+  actualRecipient      String?
+  deliveredToRecipient String?
+  usedTestRouting      Boolean  @default(false)
+  errorMessage         String?
+  createdAt            DateTime @default(now())
+}
+
+model TenantResponse {
+  id                        String    @id @default(auto()) @map("_id") @db.ObjectId
+  airfilterReminderId       String    @db.ObjectId
+  channel                   String
+  responseText              String
+  responseDetectedAsChanged Boolean   @default(false)
+  responseConfidence        Float?
+  responseReviewedByUserId  String?   @db.ObjectId
+  responseReviewedAt        DateTime?
+  createdAt                 DateTime  @default(now())
+}
+
+model AirfilterReminderAudit {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  airfilterReminderId String   @db.ObjectId
+  previousStatus      String?
+  newStatus           String
+  notes               String?
+  providerResponseId  String?
+  createdByUserId     String?  @db.ObjectId
+  createdAt           DateTime @default(now())
+}
