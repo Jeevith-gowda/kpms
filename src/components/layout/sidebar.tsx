@@ -18,7 +18,12 @@ interface NavItem {
   children?: { label: string; href: string; permission?: string; icon?: React.ReactNode }[];
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  mobileOpen?: boolean;
+  setMobileOpen?: (open: boolean) => void;
+}
+
+export function Sidebar({ mobileOpen = false, setMobileOpen }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, hasPermission } = useAuth();
@@ -56,9 +61,16 @@ export function Sidebar() {
     return pathname === href || pathname.startsWith(href + "/");
   }
 
+  function handleLinkClick() {
+    if (setMobileOpen) setMobileOpen(false);
+  }
+
   return (
-    <aside className="w-60 min-h-screen bg-gray-900 text-gray-100 flex flex-col">
-      <div className="px-4 py-5 border-b border-gray-700">
+    <aside className={cn(
+      "fixed inset-y-0 left-0 z-40 w-64 bg-gray-900 text-gray-100 flex flex-col transition-transform duration-300 ease-in-out md:relative md:translate-x-0",
+      mobileOpen ? "translate-x-0" : "-translate-x-full"
+    )}>
+      <div className="px-4 py-5 border-b border-gray-700 flex items-center justify-between">
         <h1 className="text-sm font-bold text-white leading-tight">Property Management Portal</h1>
       </div>
 
@@ -96,6 +108,7 @@ export function Sidebar() {
                       <Link
                         key={child.href}
                         href={child.href}
+                        onClick={handleLinkClick}
                         className={cn(
                           "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors",
                           isActive(child.href)
@@ -117,6 +130,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href!}
+              onClick={handleLinkClick}
               className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors",
                 isActive(item.href!)

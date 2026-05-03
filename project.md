@@ -1107,3 +1107,10 @@ During the final configuration and testing phase, the following enhancements and
 ### UI / UX Enhancements
 - **Messages Auto-Refresh:** Added a 5-second auto-polling interval to the React Query hooks on the Messages page. Incoming and outgoing messages now instantly appear without a page reload.
 - **Mobile Responsiveness:** Refactored the Messages page to be fully mobile responsive. The split-pane layout now intelligently stacks on small screens, showing the conversation list first, and opening full-width with a "Back" button when a thread is selected.
+
+### Deployment Configuration & Fixes (Vercel & MongoDB)
+- **Vercel Cron Limit Fix:** Updated ercel.json to schedule the background reminders daily at 14:00 UTC (  14 * * *) to comply with the Vercel Hobby tier limits (1 execution per day).
+- **Prisma Vercel Caching Fix:** Updated the uild script in package.json to "prisma generate && next build" and added a postinstall script to ensure the Prisma client is properly generated and not aggressively cached by Vercel.
+- **Next.js Static Generation Fix:** Appended export const dynamic = 'force-dynamic'; to the top of all API routes. This prevents the Next.js builder from attempting to statically execute database queries during the Vercel build phase (which causes Failed to collect page data errors).
+- **MongoDB Atlas Firewall:** Verified that MongoDB Atlas Network Access must be set to allow IP  .0.0.0/0 (Allow Access From Anywhere) to successfully connect from Vercel's dynamic IP environment.
+- **Webhook Production URL:** Configured the OpenPhone/Quo webhook to point to the live Vercel domain (https://[domain].vercel.app/api/messages/webhook), ensuring both message.received and message.sent events are active.
