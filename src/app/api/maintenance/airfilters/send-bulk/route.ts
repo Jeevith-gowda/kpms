@@ -23,21 +23,7 @@ export async function POST(req: NextRequest) {
       pauseReminders: false,
       status: { notIn: ["CONFIRMED_CHANGED", "SKIPPED"] },
     },
-    include: {
-      property: true,
-      tenant: true,
-    }
   });
-
-  if (isDryRun) {
-    const targets = dueReminders.map(r => ({
-      name: r.tenant?.fullName ?? "Resident",
-      phone: r.tenant?.primaryPhone,
-      email: r.tenant?.email,
-      address: r.property?.address1
-    }));
-    return NextResponse.json({ ok: true, targets });
-  }
 
   const propertyIds = [...new Set(dueReminders.map((r) => r.propertyId))];
   const tenantIds = [...new Set(dueReminders.filter((r) => r.tenantId).map((r) => r.tenantId!))];
@@ -47,6 +33,20 @@ export async function POST(req: NextRequest) {
   ]);
   const propMap = Object.fromEntries(properties.map((p) => [p.id, p]));
   const tenantMap = Object.fromEntries(tenants.map((t) => [t.id, t]));
+
+  if (isDryRun) {
+    const targets = dueReminders.map(r => {
+      const property = propMap[r.propertyId];
+      const tenant = r.tenantId ? tenantMap[r.tenantId] : null;
+      return {
+        name: tenant?.fullName ?? "Resident",
+        phone: tenant?.primaryPhone,
+        email: tenant?.email,
+        address: property?.address1
+      };
+    });
+    return NextResponse.json({ ok: true, targets });
+  }
 
   let sent = 0;
   let failed = 0;
