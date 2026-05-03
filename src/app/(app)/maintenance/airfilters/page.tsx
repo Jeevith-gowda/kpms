@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/components/providers";
 import { formatDate } from "@/lib/utils";
 
@@ -53,6 +54,8 @@ function AirfilterTable({ view }: { view: "current-month" | "all-time" }) {
   const [reminderStatus, setReminderStatus] = useState("all");
   const [filterChanged, setFilterChanged] = useState("all");
   const [occupancyStatus, setOccupancyStatus] = useState("all");
+  const [confirmReminder, setConfirmReminder] = useState<Reminder | null>(null);
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
 
   const params = new URLSearchParams({ view });
   if (search) params.set("search", search);
@@ -65,12 +68,22 @@ function AirfilterTable({ view }: { view: "current-month" | "all-time" }) {
     queryFn: () => fetch(`/api/maintenance/airfilters?${params}`).then((r) => r.json()),
   });
 
+  const { data: bulkPreviewData, isFetching: isFetchingBulkPreview } = useQuery<{ targets: { name: string; phone?: string; email?: string; address?: string }[] }>({
+    queryKey: ["airfilters-bulk-preview"],
+    queryFn: () => fetch(`/api/maintenance/airfilters/send-bulk?dryRun=true`).then((r) => r.json()),
+    enabled: showBulkConfirm,
+  });
+
   const sendMutation = useMutation({
     mutationFn: (reminderId: string) =>
       fetch(`/api/maintenance/airfilters/send/${reminderId}`, { method: "POST" }).then((r) => r.json()),
     onSuccess: (res) => {
       if (res.error) toast.error("Reminder failed to send. Please try again.");
-      else { toast.success("Reminder sent successfully."); qc.invalidateQueries({ queryKey: ["airfilters"] }); }
+      else { 
+        toast.success("Reminder sent successfully."); 
+        qc.invalidateQueries({ queryKey: ["airfilters"] }); 
+        setConfirmReminder(null);
+      }
     },
     onError: () => toast.error("Reminder failed to send. Please try again."),
   });
@@ -98,8 +111,8 @@ function AirfilterTable({ view }: { view: "current-month" | "all-time" }) {
     mutationFn: () =>
       fetch("/api/maintenance/airfilters/send-bulk", { method: "POST" }).then((r) => r.json()),
     onSuccess: (res) => {
-      if (res.error) toast.error("Reminder failed to send. Please try again.");
-      else { toast.success("Daily reminder schedule started successfully."); qc.invalidateQueries({ queryKey: ["airfilters"] }); }
+      if (res.error) toast.error("Reminders failed to send. Please try again.");
+      else { toast.success("Bulk reminders sent successfully."); qc.invalidateQueries({ queryKey: ["airfilters"] }); }
     },
   });
 
@@ -109,10 +122,9 @@ function AirfilterTable({ view }: { view: "current-month" | "all-time" }) {
     <div className="space-y-4">
       {/* Summary cards */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             { label: "Due This Month", value: summary.dueThisMonth },
-            { label: "Pending Reminders", value: summary.pendingReminders },
             { label: "Sent Today", value: summary.sentToday },
             { label: "Confirmed Changed", value: summary.confirmedChanged },
           ].map((s) => (
@@ -167,10 +179,9 @@ function AirfilterTable({ view }: { view: "current-month" | "all-time" }) {
         {hasPermission("send_bulk_reminders") && (
           <Button
             variant="default"
-            onClick={() => bulkMutation.mutate()}
-            disabled={bulkMutation.isPending}
+            onClick={() => setShowBulkConfirm(true)}
           >
-            {bulkMutation.isPending ? "Sending..." : "Send All Due Reminders"}
+            Send All Due Reminders
           </Button>
         )}
       </div>
@@ -238,20 +249,8 @@ function AirfilterTable({ view }: { view: "current-month" | "all-time" }) {
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        {hasPermission("send_reminder_manually") && !r.filterChanged && r.status !== "CONFIRMED_CHANGED" && !r.pauseReminders && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => sendMutation.mutate(r.id)}
-                            disabled={sendMutation.isPending}
-                          >
-                            Send Reminder
-                          </Button>
-                        )}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
@@ -259,7 +258,7 @@ function AirfilterTable({ view }: { view: "current-month" | "all-time" }) {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem>Preview Reminder</DropdownMenuItem>
                             {hasPermission("send_reminder_manually") && (
-                              <DropdownMenuItem onClick={() => sendMutation.mutate(r.id)}>
+                              <DropdownMenuItem onClick={() => setConfirmReminder(r)}>
                                 Send Reminder Now
                               </DropdownMenuItem>
                             )}
@@ -292,7 +291,6 @@ function AirfilterTable({ view }: { view: "current-month" | "all-time" }) {
                             <DropdownMenuItem>Open Conversation</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </div>
                     </td>
                   </tr>
                 ))
@@ -301,6 +299,103 @@ function AirfilterTable({ view }: { view: "current-month" | "all-time" }) {
           </table>
         </div>
       </div>
+      
+      {/* Confirmation Dialog */}
+      {confirmReminder && (
+        <Dialog open={!!confirmReminder} onOpenChange={(open) => !open && setConfirmReminder(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Send Reminder</DialogTitle>
+              <DialogDescription>
+                You are about to send a manual reminder for {confirmReminder.property.address1}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900">Tenant</h4>
+                  <p className="text-sm text-gray-500">{confirmReminder.tenant?.fullName || "No tenant assigned"}</p>
+                </div>
+                {confirmReminder.tenant?.primaryPhone && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900">SMS</h4>
+                    <p className="text-sm text-gray-500">{confirmReminder.tenant.primaryPhone}</p>
+                  </div>
+                )}
+                {confirmReminder.tenant?.email && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900">Email</h4>
+                    <p className="text-sm text-gray-500">{confirmReminder.tenant.email}</p>
+                  </div>
+                )}
+                {!confirmReminder.tenant?.primaryPhone && !confirmReminder.tenant?.email && (
+                  <div className="rounded-md bg-yellow-50 p-4">
+                    <p className="text-sm text-yellow-700">
+                      Warning: This tenant has no phone or email on file. The reminder cannot be sent.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmReminder(null)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => sendMutation.mutate(confirmReminder.id)}
+                disabled={sendMutation.isPending || (!confirmReminder.tenant?.primaryPhone && !confirmReminder.tenant?.email)}
+              >
+                {sendMutation.isPending ? "Sending..." : "Confirm & Send"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={showBulkConfirm} onOpenChange={setShowBulkConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Bulk Send</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to send all due reminders? This action will immediately send SMS and/or email reminders to the following tenants:
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-md p-3 space-y-2 bg-gray-50">
+            {isFetchingBulkPreview ? (
+              <p className="text-sm text-gray-500 text-center py-4">Loading preview...</p>
+            ) : !bulkPreviewData?.targets?.length ? (
+              <p className="text-sm text-gray-500 text-center py-4">No due reminders found to send.</p>
+            ) : (
+              bulkPreviewData.targets.map((t, i) => (
+                <div key={i} className="text-sm flex flex-col p-2 bg-white rounded border border-gray-200 shadow-sm">
+                  <span className="font-medium text-gray-900">{t.name}</span>
+                  <span className="text-xs text-gray-500">{t.address}</span>
+                  <span className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                    {[t.phone, t.email].filter(Boolean).join(" • ")}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={() => {
+                bulkMutation.mutate();
+                setShowBulkConfirm(false);
+              }}
+              disabled={bulkMutation.isPending || isFetchingBulkPreview || !bulkPreviewData?.targets?.length}
+            >
+              {bulkMutation.isPending ? "Sending..." : "Confirm & Send"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

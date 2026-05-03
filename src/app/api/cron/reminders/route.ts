@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendSms } from "@/lib/openphone";
 import { sendEmail } from "@/lib/email";
 import { getNextReminderDate } from "@/lib/airfilter-dates";
+import { logOutboundMessageToConversation } from "@/lib/messages";
 
 // Vercel Cron Job — runs on the schedule defined in vercel.json
 // Protected by CRON_SECRET to prevent unauthorized invocation
@@ -25,19 +26,10 @@ export async function GET(req: NextRequest) {
     }
 
     const now = new Date();
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const currentMonthEnd = new Date(
-      now.getFullYear(),
-      now.getMonth() + 1,
-      0,
-      23,
-      59,
-      59
-    );
 
     const dueReminders = await prisma.airfilterReminder.findMany({
       where: {
-        nextFilterChangeDate: { gte: currentMonthStart, lte: currentMonthEnd },
+        nextFilterChangeDate: { lte: now },
         filterChanged: false,
         pauseReminders: false,
         status: { notIn: ["CONFIRMED_CHANGED", "SKIPPED"] },
@@ -72,7 +64,7 @@ export async function GET(req: NextRequest) {
 
       const property = propMap[reminder.propertyId];
       const tenant = reminder.tenantId ? tenantMap[reminder.tenantId] : null;
-      const messageText = `Hi ${tenant?.fullName ?? "Resident"}, this is a reminder to change your air filter at ${property?.address1 ?? "your property"}. Please reply "changed" when done. Thank you!`;
+      const messageText = `Hi ${tenant?.fullName ?? "Resident"}, this is a reminder to change the air filter at ${property?.address1 ?? "your property"}. When finished, please reply "changed" along with a photo of the new filter showing the current date. Thank you! - KPMS`;
 
       if (settings.sendViaSms && tenant?.primaryPhone) {
         const toPhone =
@@ -94,6 +86,15 @@ export async function GET(req: NextRequest) {
               usedTestRouting: settings.sendEveryMessageToDefaultNumber,
             },
           });
+
+          await logOutboundMessageToConversation({
+            toPhone,
+            messageText,
+            messageId,
+            tenantId: tenant.id,
+            propertyId: property?.id,
+          });
+
           sent++;
         } catch (err) {
           console.error("[cron] SMS error:", err);

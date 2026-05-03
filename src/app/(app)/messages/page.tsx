@@ -34,12 +34,14 @@ export default function MessagesPage() {
   const { data: convData } = useQuery<{ conversations: Conversation[] }>({
     queryKey: ["conversations", search],
     queryFn: () => fetch(`/api/messages/conversations?search=${encodeURIComponent(search)}`).then((r) => r.json()),
+    refetchInterval: 5000,
   });
 
   const { data: threadData } = useQuery<{ conversation: Conversation & { messages: Message[] } }>({
     queryKey: ["conversation", selectedId],
     queryFn: () => fetch(`/api/messages/conversations/${selectedId}`).then((r) => r.json()),
     enabled: !!selectedId,
+    refetchInterval: 5000,
   });
 
   const sendMutation = useMutation({
@@ -60,16 +62,16 @@ export default function MessagesPage() {
   });
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8 flex flex-col h-screen max-h-screen">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
         <p className="mt-1 text-gray-500">View and manage tenant conversations.</p>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 flex" style={{ height: "calc(100vh - 200px)" }}>
+      <div className="bg-white rounded-lg border border-gray-200 flex flex-1 overflow-hidden min-h-0">
         {/* Left pane */}
-        <div className="w-80 border-r border-gray-200 flex flex-col">
-          <div className="p-4 border-b border-gray-200">
+        <div className={cn("w-full md:w-80 border-r border-gray-200 flex flex-col", selectedId ? "hidden md:flex" : "flex")}>
+          <div className="p-4 border-b border-gray-200 shrink-0">
             <h2 className="font-medium text-gray-900 mb-3">Conversations</h2>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -107,7 +109,7 @@ export default function MessagesPage() {
         </div>
 
         {/* Right pane */}
-        <div className="flex-1 flex flex-col">
+        <div className={cn("flex-1 flex flex-col w-full min-w-0", !selectedId ? "hidden md:flex" : "flex")}>
           {!selectedId ? (
             <div className="flex-1 flex items-center justify-center text-gray-400">
               Select a conversation to view messages.
@@ -116,11 +118,21 @@ export default function MessagesPage() {
             <>
               {/* Header */}
               {threadData?.conversation && (
-                <div className="p-4 border-b border-gray-200">
-                  <div className="font-medium text-gray-900">
-                    {threadData.conversation.tenant?.fullName ?? threadData.conversation.phoneNumber}
+                <div className="p-4 border-b border-gray-200 flex items-center gap-3 shrink-0">
+                  <button 
+                    onClick={() => setSelectedId(null)} 
+                    className="md:hidden p-2 -ml-2 text-gray-500 hover:text-gray-700 bg-gray-50 rounded-full"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <div className="min-w-0">
+                    <div className="font-medium text-gray-900 truncate">
+                      {threadData.conversation.tenant?.fullName ?? threadData.conversation.phoneNumber}
+                    </div>
+                    <div className="text-sm text-gray-500 truncate">{threadData.conversation.phoneNumber}</div>
                   </div>
-                  <div className="text-sm text-gray-500">{threadData.conversation.phoneNumber}</div>
                 </div>
               )}
 

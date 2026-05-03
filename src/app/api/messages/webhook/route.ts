@@ -2,29 +2,43 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { detectFilterChanged } from "@/lib/airfilter-dates";
 
+import fs from "fs";
+
 export async function POST(req: NextRequest) {
   const payload = await req.json();
+  console.log("Webhook payload received:", JSON.stringify(payload, null, 2));
+  
+  // DEBUG: Write payload to file so we can inspect it
+  try {
+    fs.writeFileSync("webhook-payload.json", JSON.stringify(payload, null, 2));
+  } catch (e) {}
 
   try {
     const event = payload?.type ?? payload?.event;
-    const msgData = payload?.data ?? payload?.message ?? payload;
+    const msgData = payload?.data?.object ?? payload?.data ?? payload?.message ?? payload;
 
-    if (!msgData?.from && !msgData?.phoneNumber) {
+    const direction = msgData.direction; // "incoming" or "outgoing"
+    const isOutbound = direction === "outgoing" || direction === "outbound";
+    
+    const targetPhoneRaw = isOutbound ? (msgData.to ?? msgData.phoneNumber) : (msgData.from ?? msgData.phoneNumber);
+    const phoneStr = Array.isArray(targetPhoneRaw) ? targetPhoneRaw[0] : targetPhoneRaw;
+
+    if (!phoneStr) {
       return NextResponse.json({ ok: true });
     }
 
-    const fromPhone = msgData.from ?? msgData.phoneNumber;
+    const cleanPhone = phoneStr.replace(/\D/g, "").slice(-10);
     const body = msgData.body ?? msgData.text ?? msgData.content ?? "";
     const externalId = msgData.id ?? msgData.messageId;
 
     // Find or create conversation
     let conversation = await prisma.conversation.findFirst({
-      where: { phoneNumber: fromPhone },
+      where: { phoneNumber: { contains: cleanPhone } },
     });
 
     if (!conversation) {
       const tenant = await prisma.tenant.findFirst({
-        where: { primaryPhone: { contains: fromPhone.replace(/\D/g, "").slice(-10) } },
+        where: { primaryPhone: { contains: cleanPhone } },
       });
       conversation = await prisma.conversation.create({
         data: {
@@ -42,7 +56,7 @@ export async function POST(req: NextRequest) {
       create: {
         conversationId: conversation.id,
         externalId: externalId,
-        direction: "INBOUND",
+        direction: isOutbound ? "OUTBOUND" : "INBOUND",
         body,
         status: "delivered",
         provider: "openphone",

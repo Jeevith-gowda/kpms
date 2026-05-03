@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { sendSms } from "@/lib/openphone";
 import { sendEmail } from "@/lib/email";
+import { logOutboundMessageToConversation } from "@/lib/messages";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ reminderId: string }> }) {
   const { error, user } = await requirePermission(req, "send_reminder_manually");
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rem
 
   if (!settings) return NextResponse.json({ error: "Settings not configured" }, { status: 400 });
 
-  const messageText = `Hi ${tenant?.fullName ?? "Resident"}, this is a reminder to change your air filter at ${property?.address1 ?? "your property"}. Please reply "changed" when done. Thank you!`;
+  const messageText = `Hi ${tenant?.fullName ?? "Resident"}, this is a reminder to change the air filter at ${property?.address1 ?? "your property"}. When finished, please reply "changed" along with a photo of the new filter showing the current date. Thank you! - KPMS`;
 
   const results: { channel: string; ok: boolean; error?: string }[] = [];
 
@@ -44,6 +45,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ rem
           usedTestRouting: settings.sendEveryMessageToDefaultNumber,
         },
       });
+
+      await logOutboundMessageToConversation({
+        toPhone,
+        messageText,
+        messageId,
+        tenantId: tenant.id,
+        propertyId: property?.id,
+      });
+
       results.push({ channel: "SMS", ok: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "SMS failed";

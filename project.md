@@ -1085,3 +1085,25 @@ Deliverables:
 - No hardcoded default credentials.
 - The system must support secure bootstrap creation of the first Admin.
 - Use audit/history tables for all sensitive actions and automation flows.
+
+---
+
+## 20) Recent Updates & Bug Fixes (May 2026 Session)
+
+During the final configuration and testing phase, the following enhancements and fixes were applied to the application:
+
+### Webhooks & Messaging Sync
+- **Webhook Payload Structure:** Updated the webhook API to correctly parse deeply nested payloads (`data.object`) arriving from OpenPhone/Quo.
+- **Outbound Message Tracking:** Built a helper function to automatically log outbound automated Airfilter reminders into the `Message` and `Conversation` tables, allowing staff to view the outbound messages natively in the KPMS Messages page.
+- **Phone Number Normalization:** Resolved a bug where webhooks sending numbers with a `+1` prefix created duplicate separate conversation threads. Phone numbers are now normalized and matched using the last 10 digits.
+- **External Outbound Sync:** Updated the webhook configuration to listen to both `message.received` and `message.sent` events. This ensures that when a staff member replies to a tenant directly from the Quo mobile app, it syncs back to the KPMS Messages page.
+
+### Airfilter Reminders & Due Dates
+- **Updated Reminder Wording:** Modified the automated text to explicitly request a dated photo: *"Hi [Name], this is a reminder to change the air filter at [Address]. When finished, please reply 'changed' along with a photo of the new filter showing the current date. Thank you! - KPMS"*
+- **Strict Date Filtering:** Changed the "Due" calculation for automated Cron jobs and Bulk Sends from evaluating the *entire calendar month* to strictly sending only if the date is due on or before the *exact current day*.
+- **Pending Reminders Removed:** Removed the "Pending Reminders" stat card from the Airfilters summary UI to simplify the dashboard interface.
+- **Bulk Send Confirmation Modal:** Added a pre-flight confirmation modal when clicking "Send All Due Reminders". It evaluates the exact list of recipients based on the current date, showing their names, addresses, and contact info before the user commits to sending.
+
+### UI / UX Enhancements
+- **Messages Auto-Refresh:** Added a 5-second auto-polling interval to the React Query hooks on the Messages page. Incoming and outgoing messages now instantly appear without a page reload.
+- **Mobile Responsiveness:** Refactored the Messages page to be fully mobile responsive. The split-pane layout now intelligently stacks on small screens, showing the conversation list first, and opening full-width with a "Back" button when a thread is selected.

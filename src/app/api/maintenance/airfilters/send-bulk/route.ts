@@ -3,26 +3,41 @@ import { requirePermission } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { sendSms } from "@/lib/openphone";
 import { sendEmail } from "@/lib/email";
+import { logOutboundMessageToConversation } from "@/lib/messages";
 
 export async function POST(req: NextRequest) {
   const { error, user } = await requirePermission(req, "send_bulk_reminders");
   if (error) return error;
 
   const now = new Date();
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  const searchParams = req.nextUrl.searchParams;
+  const isDryRun = searchParams.get("dryRun") === "true";
 
   const settings = await prisma.appSettings.findFirst({ orderBy: { createdAt: "desc" } });
   if (!settings) return NextResponse.json({ error: "Settings not configured" }, { status: 400 });
 
   const dueReminders = await prisma.airfilterReminder.findMany({
     where: {
-      nextFilterChangeDate: { gte: currentMonthStart, lte: currentMonthEnd },
+      nextFilterChangeDate: { lte: now },
       filterChanged: false,
       pauseReminders: false,
       status: { notIn: ["CONFIRMED_CHANGED", "SKIPPED"] },
     },
+    include: {
+      property: true,
+      tenant: true,
+    }
   });
+
+  if (isDryRun) {
+    const targets = dueReminders.map(r => ({
+      name: r.tenant?.fullName ?? "Resident",
+      phone: r.tenant?.primaryPhone,
+      email: r.tenant?.email,
+      address: r.property?.address1
+    }));
+    return NextResponse.json({ ok: true, targets });
+  }
 
   const propertyIds = [...new Set(dueReminders.map((r) => r.propertyId))];
   const tenantIds = [...new Set(dueReminders.filter((r) => r.tenantId).map((r) => r.tenantId!))];
@@ -39,7 +54,7 @@ export async function POST(req: NextRequest) {
   for (const reminder of dueReminders) {
     const property = propMap[reminder.propertyId];
     const tenant = reminder.tenantId ? tenantMap[reminder.tenantId] : null;
-    const messageText = `Hi ${tenant?.fullName ?? "Resident"}, this is a reminder to change your air filter at ${property?.address1 ?? "your property"}. Please reply "changed" when done. Thank you!`;
+    const messageText = `Hi ${tenant?.fullName ?? "Resident"}, this is a reminder to change the air filter at ${property?.address1 ?? "your property"}. When finished, please reply "changed" along with a photo of the new filter showing the current date. Thank you! - KPMS`;
 
     if (settings.sendViaSms && tenant?.primaryPhone) {
       const toPhone = settings.sendEveryMessageToDefaultNumber
@@ -59,6 +74,15 @@ export async function POST(req: NextRequest) {
             usedTestRouting: settings.sendEveryMessageToDefaultNumber,
           },
         });
+
+        await logOutboundMessageToConversation({
+          toPhone,
+          messageText,
+          messageId,
+          tenantId: tenant.id,
+          propertyId: property?.id,
+        });
+
         sent++;
       } catch { failed++; }
     }
