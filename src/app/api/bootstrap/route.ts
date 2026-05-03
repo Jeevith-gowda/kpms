@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { bootstrapAdmin, seedPermissions } from "@/lib/seed-permissions";
 
@@ -11,3 +12,4 @@ export async function POST() {
     return NextResponse.json({ error: "Bootstrap failed" }, { status: 500 });
   }
 }
+

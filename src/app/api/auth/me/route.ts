@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser, getUserPermissions } from "@/lib/auth";
 
@@ -8,3 +9,4 @@ export async function GET(req: NextRequest) {
   const permissions = await getUserPermissions(user.id);
   return NextResponse.json({ user, permissions });
 }
+

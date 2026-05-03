@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission, requireAuth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
@@ -51,3 +52,4 @@ export async function PUT(req: NextRequest) {
   });
   return NextResponse.json({ settings: created });
 }
+

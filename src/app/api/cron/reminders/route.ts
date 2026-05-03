@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendSms } from "@/lib/openphone";
@@ -144,3 +145,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Cron job failed" }, { status: 500 });
   }
 }
+
