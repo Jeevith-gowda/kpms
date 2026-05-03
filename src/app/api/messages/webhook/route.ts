@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       });
       conversation = await prisma.conversation.create({
         data: {
-          phoneNumber: fromPhone,
+          phoneNumber: phoneStr,
           tenantId: tenant?.id,
           inboxStatus: "open",
           lastMessageAt: new Date(),
