@@ -6,6 +6,15 @@ import { sendSms } from "@/lib/openphone";
 import Groq from "groq-sdk";
 import fs from "fs";
 
+/** Ensures phone is in E.164 format for OpenPhone API. */
+function formatE164(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (phone.startsWith("+")) return phone;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return `+${digits}`;
+}
+
 export async function POST(req: NextRequest) {
   const payload = await req.json();
   console.log("Webhook payload received:", JSON.stringify(payload, null, 2));
@@ -75,11 +84,10 @@ export async function POST(req: NextRequest) {
       data: { lastMessageAt: new Date() },
     });
 
+    const mediaUrls = msgData.media?.map((m: any) => m.url) || [];
     let handledAsAirfilter = false;
 
-    if (body && conversation.tenantId && !isOutbound) {
-      const { detected, confidence, interpretedStatus } = detectFilterChanged(body);
-
+    if (conversation.tenantId && !isOutbound) {
       const activeReminder = await prisma.airfilterReminder.findFirst({
         where: {
           tenantId: conversation.tenantId,
@@ -90,46 +98,122 @@ export async function POST(req: NextRequest) {
       });
 
       if (activeReminder) {
-        const needsManualReview = interpretedStatus === "AMBIGUOUS";
-        const autoUpdatedSystem = interpretedStatus === "CHANGED" && confidence >= 0.8;
-
-        await prisma.tenantResponse.create({
-          data: {
-            airfilterReminderId: activeReminder.id,
-            channel: "SMS",
-            responseText: body,
-            responseDetectedAsChanged: detected,
-            responseConfidence: confidence,
-            associationMethod: "conversation_tenant",
-            associationConfidence: 0.9,
-            interpretedStatus,
-            autoUpdatedSystem,
-            needsManualReview,
-          },
-        });
-
-        if (autoUpdatedSystem) {
+        if (mediaUrls.length > 0 && process.env.GROQ_API_KEY) {
           handledAsAirfilter = true;
-          await prisma.airfilterReminder.update({
-            where: { id: activeReminder.id },
+          
+          try {
+            const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+            const chatCompletion = await groq.chat.completions.create({
+              model: "llama-3.2-90b-vision-preview",
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    { type: "text", text: "Look at this image. Does it show an air filter? Does it have a handwritten date clearly visible on it? Respond in strict JSON format: { \"hasAirfilter\": boolean, \"hasWrittenDate\": boolean, \"date\": string | null }." },
+                    { type: "image_url", image_url: { url: mediaUrls[0] } }
+                  ]
+                }
+              ],
+              temperature: 0.1,
+              response_format: { type: "json_object" }
+            });
+
+            const resultStr = chatCompletion.choices[0]?.message?.content || "{}";
+            const result = JSON.parse(resultStr);
+
+            await prisma.tenantResponse.create({
+              data: {
+                airfilterReminderId: activeReminder.id,
+                channel: "SMS",
+                responseText: body || "[Image attached]",
+                responseDetectedAsChanged: !!result.hasWrittenDate,
+                responseConfidence: 0.9,
+                associationMethod: "conversation_tenant",
+                associationConfidence: 0.9,
+                interpretedStatus: result.hasWrittenDate ? "CHANGED" : "NOT_CHANGED",
+                autoUpdatedSystem: !!result.hasWrittenDate,
+                needsManualReview: false,
+              },
+            });
+
+            if (result.hasWrittenDate) {
+              await prisma.airfilterReminder.update({
+                where: { id: activeReminder.id },
+                data: {
+                  filterChanged: true,
+                  filterChangedAt: new Date(),
+                  status: "CONFIRMED_CHANGED",
+                  tenantResponseText: body || `[Image with date confirmed: ${result.date}]`,
+                  tenantResponseAt: new Date(),
+                  tenantResponseChannel: "SMS",
+                  autoUpdatedFromResponse: true,
+                  autoUpdatedAt: new Date(),
+                  requiresManualReview: false,
+                },
+              });
+              await sendSms(formatE164(phoneStr), "Thanks! The air filter change has been confirmed with the provided date.\n\n- KPMS BOT");
+            } else {
+              await sendSms(formatE164(phoneStr), "Thanks for the picture! Please write today's date on the new filter with a marker, take another photo, and send it here so we can confirm the change.\n\n- KPMS BOT");
+            }
+          } catch (err) {
+            console.error("Vision check failed:", err);
+            handledAsAirfilter = false;
+          }
+        } else if (body) {
+          const { detected, confidence, interpretedStatus } = detectFilterChanged(body);
+          handledAsAirfilter = true;
+
+          await prisma.tenantResponse.create({
             data: {
-              filterChanged: true,
-              filterChangedAt: new Date(),
-              status: "CONFIRMED_CHANGED",
-              tenantResponseText: body,
-              tenantResponseAt: new Date(),
-              tenantResponseChannel: "SMS",
-              autoUpdatedFromResponse: true,
-              autoUpdatedAt: new Date(),
-              requiresManualReview: false,
+              airfilterReminderId: activeReminder.id,
+              channel: "SMS",
+              responseText: body,
+              responseDetectedAsChanged: detected,
+              responseConfidence: confidence,
+              associationMethod: "conversation_tenant",
+              associationConfidence: 0.9,
+              interpretedStatus,
+              autoUpdatedSystem: false,
+              needsManualReview: interpretedStatus === "AMBIGUOUS",
             },
           });
-        } else if (needsManualReview) {
-          handledAsAirfilter = true;
-          await prisma.airfilterReminder.update({
-            where: { id: activeReminder.id },
-            data: { requiresManualReview: true }
-          });
+
+          const toPhone = formatE164(phoneStr);
+          console.log(`[airfilter] interpretedStatus=${interpretedStatus} toPhone=${toPhone}`);
+
+          if (interpretedStatus === "CHANGED") {
+            try {
+              await sendSms(
+                toPhone,
+                `Thanks for letting us know! To complete the confirmation, please send a photo of the new air filter with today's date written on it.\n\n- KPMS BOT`
+              );
+              console.log(`[airfilter] Photo-request SMS sent to ${toPhone}`);
+            } catch (smsErr) {
+              console.error("[airfilter] Failed to send CHANGED SMS:", smsErr);
+            }
+            await prisma.airfilterReminder.update({
+              where: { id: activeReminder.id },
+              data: { requiresManualReview: true },
+            });
+
+          } else if (interpretedStatus === "NOT_CHANGED") {
+            try {
+              await sendSms(
+                toPhone,
+                `No problem! We'll continue to send you reminders. Please change the air filter as soon as possible and reply here with a photo once done.\n\n- KPMS BOT`
+              );
+              console.log(`[airfilter] NOT_CHANGED SMS sent to ${toPhone}`);
+            } catch (smsErr) {
+              console.error("[airfilter] Failed to send NOT_CHANGED SMS:", smsErr);
+            }
+
+          } else {
+            // AMBIGUOUS — flag for manual review, no auto-response
+            await prisma.airfilterReminder.update({
+              where: { id: activeReminder.id },
+              data: { requiresManualReview: true },
+            });
+          }
         }
       }
     }
@@ -156,7 +240,7 @@ Your job is to generate a short, professional, and helpful SMS-style response to
 Do NOT make unsupported promises or financial guarantees.
 Do NOT reveal internal-only data.
 Keep it concise and conversational.
-Sign off as "KPMS BOT".`;
+Always sign off with "- KPMS BOT" on a new line at the very end.`;
 
         if (property) {
           systemPrompt += `\nProperty Context: ${property.address1}, ${property.city}, ${property.state}.`;

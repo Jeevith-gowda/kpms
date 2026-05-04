@@ -42,7 +42,7 @@ Your job is to generate a short, professional, and helpful SMS-style response to
 Do NOT make unsupported promises or financial guarantees.
 Do NOT reveal internal-only data.
 Keep it concise and conversational.
-Sign off as "KPMS BOT".`;
+Always sign off with "- KPMS BOT" on a new line at the very end.`;
 
     if (property) {
       systemPrompt += `\nProperty Context: ${property.address1}, ${property.city}, ${property.state}.`;
