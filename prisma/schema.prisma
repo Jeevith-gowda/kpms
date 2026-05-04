@@ -109,7 +109,7 @@ model Lease {
 
 model Conversation {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
-  externalId    String?   @unique
+  externalId    String?
   tenantId      String?   @db.ObjectId
   propertyId    String?   @db.ObjectId
   phoneNumber   String
@@ -121,7 +121,7 @@ model Conversation {
 
 model Message {
   id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  externalId     String?  @unique
+  externalId     String?
   conversationId String   @db.ObjectId
   direction      String
   body           String
@@ -129,6 +129,8 @@ model Message {
   provider       String
   sentAt         DateTime?
   rawPayload     Json?
+  isAiGenerated  Boolean  @default(false)
+  wasAutoSent    Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
@@ -141,6 +143,7 @@ model AppSettings {
   sendMessagesAutomatically       Boolean  @default(true)
   sendEveryMessageToDefaultNumber Boolean  @default(false)
   defaultTestPhoneNumber          String?
+  enableAutoResponsesToMessages   Boolean  @default(false)
   updatedByUserId                 String?  @db.ObjectId
   updatedAt                       DateTime @updatedAt
   createdAt                       DateTime @default(now())
@@ -172,6 +175,9 @@ model AirfilterReminder {
   sentAt                   DateTime?
   skippedAt                DateTime?
   errorMessage             String?
+  requiresManualReview     Boolean   @default(false)
+  autoUpdatedFromResponse  Boolean   @default(false)
+  autoUpdatedAt            DateTime?
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
@@ -199,6 +205,11 @@ model TenantResponse {
   responseText              String
   responseDetectedAsChanged Boolean   @default(false)
   responseConfidence        Float?
+  associationMethod         String?
+  associationConfidence     Float?
+  interpretedStatus         String?
+  autoUpdatedSystem         Boolean   @default(false)
+  needsManualReview         Boolean   @default(false)
   responseReviewedByUserId  String?   @db.ObjectId
   responseReviewedAt        DateTime?
   createdAt                 DateTime  @default(now())
@@ -213,4 +224,16 @@ model AirfilterReminderAudit {
   providerResponseId  String?
   createdByUserId     String?  @db.ObjectId
   createdAt           DateTime @default(now())
+}
+
+model AiReplyGeneration {
+  id                     String   @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId         String   @db.ObjectId
+  sourceMessageId        String?
+  generatedReplyId       String?
+  wasAutoSent            Boolean  @default(false)
+  autoSendDecision       String?
+  autoSendDecisionReason String?
+  draftText              String
+  createdAt              DateTime @default(now())
 }

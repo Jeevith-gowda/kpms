@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   const { error } = await requirePermission(req, "send_messages");
   if (error) return error;
 
-  const { conversationId, body } = await req.json();
+  const { conversationId, body, aiGenerationId } = await req.json();
   if (!conversationId || !body) {
     return NextResponse.json({ error: "conversationId and body are required" }, { status: 400 });
   }
@@ -40,8 +40,16 @@ export async function POST(req: NextRequest) {
       provider: "openphone",
       sentAt: new Date(),
       externalId: providerMessageId,
+      isAiGenerated: !!aiGenerationId,
     },
   });
+
+  if (aiGenerationId) {
+    await prisma.aiReplyGeneration.update({
+      where: { id: aiGenerationId },
+      data: { generatedReplyId: message.id },
+    }).catch(console.error);
+  }
 
   await prisma.conversation.update({
     where: { id: conversationId },
@@ -50,4 +58,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true, message });
 }
+
 

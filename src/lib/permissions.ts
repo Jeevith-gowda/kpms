@@ -14,6 +14,12 @@ export const PERMISSIONS = {
   VIEW_SETTINGS_ACCESS: "view_settings_access",
   MANAGE_ACCESS_SETTINGS: "manage_access_settings",
   MANAGE_USERS: "manage_users",
+  GENERATE_AI_REPLIES: "generate_ai_replies",
+  SEND_AI_REPLIES: "send_ai_replies",
+  ENABLE_OR_DISABLE_AI_AUTO_RESPONSES: "enable_or_disable_ai_auto_responses",
+  VIEW_AI_AUTO_RESPONSE_ACTIVITY: "view_ai_auto_response_activity",
+  REVIEW_AIRFILTER_RESPONSE_MATCHES: "review_airfilter_response_matches",
+  APPROVE_AIRFILTER_AUTO_UPDATES: "approve_airfilter_auto_updates",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -34,6 +40,12 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   view_settings_access: "View Settings - Access",
   manage_access_settings: "Manage Access Settings",
   manage_users: "Manage Users",
+  generate_ai_replies: "Generate AI Replies",
+  send_ai_replies: "Send AI Replies",
+  enable_or_disable_ai_auto_responses: "Enable or Disable AI Auto Responses",
+  view_ai_auto_response_activity: "View AI Auto Response Activity",
+  review_airfilter_response_matches: "Review Airfilter Response Matches",
+  approve_airfilter_auto_updates: "Approve Airfilter Auto Updates",
 };
 
 export const ALL_PERMISSION_KEYS = Object.values(PERMISSIONS);

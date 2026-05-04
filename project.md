@@ -1114,3 +1114,13 @@ During the final configuration and testing phase, the following enhancements and
 - **Next.js Static Generation Fix:** Appended export const dynamic = 'force-dynamic'; to the top of all API routes. This prevents the Next.js builder from attempting to statically execute database queries during the Vercel build phase (which causes Failed to collect page data errors).
 - **MongoDB Atlas Firewall:** Verified that MongoDB Atlas Network Access must be set to allow IP  .0.0.0/0 (Allow Access From Anywhere) to successfully connect from Vercel's dynamic IP environment.
 - **Webhook Production URL:** Configured the OpenPhone/Quo webhook to point to the live Vercel domain (https://[domain].vercel.app/api/messages/webhook), ensuring both message.received and message.sent events are active.
+
+### Mobile Experience & PWA Support
+- **Progressive Web App (PWA):** Added manifest.json and root layout meta tags (ppleWebApp, ormatDetection) to make the application fully installable on iOS and Android devices, allowing it to run in standalone full-screen mode without browser chrome.
+- **Responsive App Layout:** Refactored the core application layout (layout.tsx and sidebar.tsx) to support a mobile-first design. On smaller screens, the fixed sidebar converts into a hidden off-canvas drawer that can be toggled via a top app-bar hamburger menu, ensuring the main content is never horizontally squeezed.
+
+### Phase 2: AI Automation & Responses
+- **Feature 1 (AI Reply Suggestions):** Added an AI Assistant composer box in the Messages UI that uses Groq inference to draft context-aware replies based on the conversation history and property/tenant context. Users can edit and send these drafts directly or copy them to the manual composer.
+- **Feature 2 (AI Auto Responses):** Implemented a configurable setting in Settings > General to automatically send AI-generated replies to inbound tenant messages when no airfilter confirmation logic handles it. Auto-generations are saved with wasAutoSent auditing.
+- **Feature 3 (Airfilter Automatic Associations):** Updated the webhook parser to understand ambiguous and negative tenant responses using negative/positive phrase heuristics. Positive confirmations (e.g. "changed", "done") with high confidence automatically update the active airfilter reminder status to CONFIRMED_CHANGED and stop the reminder sequence. Ambiguous responses correctly flag the reminder to equiresManualReview.
+- **Phase 2 Permissions:** Added granular Role-Based Access Control (RBAC) permissions for generating AI replies, sending AI replies, enabling auto-responses, and approving airfilter auto-updates.

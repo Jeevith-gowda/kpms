@@ -33,6 +33,7 @@ export async function PUT(req: NextRequest) {
         sendMessagesAutomatically: body.sendMessagesAutomatically,
         sendEveryMessageToDefaultNumber: body.sendEveryMessageToDefaultNumber,
         defaultTestPhoneNumber: body.defaultTestPhoneNumber ?? null,
+        enableAutoResponsesToMessages: body.enableAutoResponsesToMessages ?? false,
         updatedByUserId: user!.id,
       },
     });
@@ -47,9 +48,11 @@ export async function PUT(req: NextRequest) {
       sendMessagesAutomatically: body.sendMessagesAutomatically ?? true,
       sendEveryMessageToDefaultNumber: body.sendEveryMessageToDefaultNumber ?? false,
       defaultTestPhoneNumber: body.defaultTestPhoneNumber ?? null,
+      enableAutoResponsesToMessages: body.enableAutoResponsesToMessages ?? false,
       updatedByUserId: user!.id,
     },
   });
   return NextResponse.json({ settings: created });
 }
+
 

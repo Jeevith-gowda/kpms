@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Search, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Sparkles, RefreshCw, ArrowDownToLine } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/utils";
 
 interface Conversation {
@@ -30,6 +31,8 @@ export default function MessagesPage() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
+  const [aiDraft, setAiDraft] = useState("");
+  const [generatedReplyId, setGeneratedReplyId] = useState<string | null>(null);
 
   const { data: convData } = useQuery<{ conversations: Conversation[] }>({
     queryKey: ["conversations", search],
@@ -45,18 +48,38 @@ export default function MessagesPage() {
   });
 
   const sendMutation = useMutation({
-    mutationFn: (body: string) =>
+    mutationFn: (data: { body: string, aiGenerationId?: string }) =>
       fetch("/api/messages/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId: selectedId, body }),
+        body: JSON.stringify({ conversationId: selectedId, ...data }),
       }).then((r) => r.json()),
     onSuccess: (res) => {
       if (res.error) toast.error("Failed to send message.");
       else {
         setMessageText("");
+        setAiDraft("");
+        setGeneratedReplyId(null);
         qc.invalidateQueries({ queryKey: ["conversation", selectedId] });
         qc.invalidateQueries({ queryKey: ["conversations"] });
+      }
+    },
+  });
+
+  const generateAiMutation = useMutation({
+    mutationFn: () =>
+      fetch("/api/messages/ai-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: selectedId }),
+      }).then((r) => r.json()),
+    onSuccess: (res) => {
+      if (res.error) {
+        toast.error("AI reply generation failed. Please try again.");
+      } else {
+        setAiDraft(res.draftText);
+        setGeneratedReplyId(res.generatedReplyId);
+        toast.success("AI reply generated successfully.");
       }
     },
   });
@@ -160,27 +183,99 @@ export default function MessagesPage() {
                 ))}
               </div>
 
-              {/* Composer */}
-              <div className="p-4 border-t border-gray-200 flex gap-2">
-                <Input
-                  placeholder="Type your message here..."
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey && messageText.trim()) {
-                      e.preventDefault();
-                      sendMutation.mutate(messageText.trim());
-                    }
-                  }}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={() => messageText.trim() && sendMutation.mutate(messageText.trim())}
-                  disabled={!messageText.trim() || sendMutation.isPending}
-                >
-                  <Send className="h-4 w-4" />
-                  Send Message
-                </Button>
+              {/* Reply Assistant Area */}
+              <div className="border-t border-gray-200 bg-gray-50 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-gray-200 shrink-0 min-h-[220px]">
+                
+                {/* AI Suggested Reply */}
+                <div className="flex-1 p-4 flex flex-col">
+                  <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5 mb-2">
+                    <Sparkles className="w-4 h-4 text-blue-600" /> AI Suggested Reply
+                  </h3>
+                  
+                  <textarea
+                    className="flex-1 w-full p-2 text-sm border border-gray-300 rounded-md bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none min-h-[80px]"
+                    placeholder={generateAiMutation.isPending ? "Generating AI reply..." : "Click “Generate AI Reply” to create a suggested response."}
+                    value={aiDraft}
+                    onChange={(e) => setAiDraft(e.target.value)}
+                    disabled={generateAiMutation.isPending}
+                  />
+                  
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {!aiDraft ? (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="bg-white"
+                        onClick={() => generateAiMutation.mutate()}
+                        disabled={generateAiMutation.isPending}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                        Generate AI Reply
+                      </Button>
+                    ) : (
+                      <>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="bg-white"
+                          onClick={() => generateAiMutation.mutate()}
+                          disabled={generateAiMutation.isPending}
+                        >
+                          <RefreshCw className={cn("w-3.5 h-3.5 mr-1.5", generateAiMutation.isPending && "animate-spin")} />
+                          Regenerate
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="bg-white"
+                          onClick={() => {
+                            setMessageText(aiDraft);
+                            toast.success("AI reply copied to manual composer.");
+                          }}
+                        >
+                          <ArrowDownToLine className="w-3.5 h-3.5 mr-1.5" />
+                          Use in Manual Reply
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={() => sendMutation.mutate({ body: aiDraft, aiGenerationId: generatedReplyId! })}
+                          disabled={sendMutation.isPending}
+                        >
+                          <Send className="w-3.5 h-3.5 mr-1.5" />
+                          Send AI Reply
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Manual Reply */}
+                <div className="flex-1 p-4 flex flex-col">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Manual Reply</h3>
+                  <textarea
+                    className="flex-1 w-full p-2 text-sm border border-gray-300 rounded-md bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none min-h-[80px]"
+                    placeholder="Type your message here..."
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey && messageText.trim()) {
+                        e.preventDefault();
+                        sendMutation.mutate({ body: messageText.trim() });
+                      }
+                    }}
+                  />
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={() => messageText.trim() && sendMutation.mutate({ body: messageText.trim() })}
+                      disabled={!messageText.trim() || sendMutation.isPending}
+                    >
+                      <Send className="w-3.5 h-3.5 mr-1.5" />
+                      Send Message
+                    </Button>
+                  </div>
+                </div>
+
               </div>
             </>
           )}

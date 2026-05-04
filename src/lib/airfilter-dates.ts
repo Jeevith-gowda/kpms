@@ -72,26 +72,32 @@ export function getNextReminderDate(
   return next;
 }
 
-export function detectFilterChanged(text: string): { detected: boolean; confidence: number } {
+export function detectFilterChanged(text: string): { detected: boolean; confidence: number; interpretedStatus: "CHANGED" | "NOT_CHANGED" | "AMBIGUOUS" } {
   const lower = text.toLowerCase().trim();
-  const highConfidencePhrases = [
-    "changed",
-    "done",
-    "completed",
-    "i changed it",
-    "filter replaced",
-    "filter changed",
-    "replaced",
-    "finished",
-    "all done",
-    "complete",
-  ];
-
-  for (const phrase of highConfidencePhrases) {
+  
+  const negativePhrases = ["not yet", "will do it", "tomorrow", "later", "soon", "this weekend", "no"];
+  for (const phrase of negativePhrases) {
     if (lower.includes(phrase)) {
-      return { detected: true, confidence: 0.9 };
+      return { detected: false, confidence: 0.9, interpretedStatus: "NOT_CHANGED" };
     }
   }
 
-  return { detected: false, confidence: 0.1 };
+  const positivePhrases = [
+    "changed", "done", "completed", "i changed it", "filter replaced",
+    "filter changed", "replaced", "finished", "all done", "complete", "yes"
+  ];
+  for (const phrase of positivePhrases) {
+    if (lower.includes(phrase)) {
+      return { detected: true, confidence: 0.9, interpretedStatus: "CHANGED" };
+    }
+  }
+
+  const ambiguousPhrases = ["ok", "okay", "thanks", "got it", "acknowledged", "sure"];
+  for (const phrase of ambiguousPhrases) {
+    if (lower.includes(phrase)) {
+      return { detected: false, confidence: 0.5, interpretedStatus: "AMBIGUOUS" };
+    }
+  }
+
+  return { detected: false, confidence: 0.1, interpretedStatus: "AMBIGUOUS" };
 }

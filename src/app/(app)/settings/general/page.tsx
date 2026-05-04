@@ -15,6 +15,7 @@ interface Settings {
   sendMessagesAutomatically: boolean;
   sendEveryMessageToDefaultNumber: boolean;
   defaultTestPhoneNumber?: string;
+  enableAutoResponsesToMessages: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -24,6 +25,7 @@ const DEFAULTS: Settings = {
   sendMessagesAutomatically: true,
   sendEveryMessageToDefaultNumber: false,
   defaultTestPhoneNumber: "",
+  enableAutoResponsesToMessages: false,
 };
 
 export default function SettingsGeneralPage() {
@@ -118,11 +120,28 @@ export default function SettingsGeneralPage() {
         <section className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Automatic Sending</h2>
           <div className="flex items-center justify-between">
-            <Label htmlFor="auto-toggle">Send Messages Automatically</Label>
+            <Label htmlFor="auto-toggle">Send Reminder Messages Automatically</Label>
             <Switch
               id="auto-toggle"
               checked={form.sendMessagesAutomatically}
               onCheckedChange={(v) => setForm((f) => ({ ...f, sendMessagesAutomatically: v }))}
+            />
+          </div>
+        </section>
+
+        {/* AI Auto Responses */}
+        <section className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-base font-semibold text-gray-900 mb-1">AI Auto Responses</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Control whether the system should automatically send AI-generated responses to incoming messages.
+            When disabled, AI responses will be generated as editable drafts only.
+          </p>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="ai-auto-toggle" className="font-medium text-gray-900">Enable Auto Responses to Messages</Label>
+            <Switch
+              id="ai-auto-toggle"
+              checked={form.enableAutoResponsesToMessages}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, enableAutoResponsesToMessages: v }))}
             />
           </div>
         </section>
